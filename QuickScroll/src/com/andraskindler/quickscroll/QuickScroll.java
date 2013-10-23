@@ -17,6 +17,8 @@ import android.view.ViewGroup.LayoutParams;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.Animation.AnimationListener;
+import android.view.animation.TranslateAnimation;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import android.widget.AbsListView.OnScrollListener;
 
@@ -47,25 +49,28 @@ public class QuickScroll extends View {
     public static final int HANDLEBAR_WIDTH = 12;
     public static final int MARKER_HEIGHT = 3;
     // base variables
-    protected boolean isScrolling;
-    protected AlphaAnimation fadeInAnimation, fadeOutAnimation;
-    protected TextView scrollIndicatorTextView;
-    protected Scrollable scrollable;
-    protected ListView listView;
-    protected int groupPosition;
-    protected int itemCount;
-    protected int type;
-    protected boolean isInitialized = false;
-    protected static final int TEXT_PADDING = 4;
+    private boolean mScrolling;
+    private AlphaAnimation mFadeIn, mFadeOut;
+    private TextView mScrollIndicatorText;
+    private Scrollable mScrollable;
+    private ListView mList;
+    private View mScrollbar;
+    private int mGroupPosition;
+    private int mItemCount;
+    private long mFadeDuration = 150;
+    private int mType;
+    private boolean mInitialized = false;
+    private static final int mTextPadding = 4;
     // handlebar variables
-    protected View handleBar;
+    private View mHandlebar;
     // indicator variables
-    protected RelativeLayout scrollIndicator;
+    private RelativeLayout mScrollIndicator;
     protected float lastHeight;
-
     private RelativeLayout container;
     private RelativeLayout layout;
     private HashMap<Integer, View> markers;
+    // animations
+    private TranslateAnimation mMoveCompatAnim;
 
     // default constructors
     public QuickScroll(Context context) {
@@ -89,17 +94,17 @@ public class QuickScroll extends View {
      * @param scrollable the adapter, must implement Scrollable interface
      */
     public void init(final int type, final ListView list, final Scrollable scrollable, final int style) {
-        if (isInitialized) return;
+        if (mInitialized) return;
 
-        this.type = type;
-        listView = list;
-        this.scrollable = scrollable;
-        groupPosition = -1;
-        fadeInAnimation = new AlphaAnimation(.0f, 1.0f);
-        fadeInAnimation.setFillAfter(true);
-        fadeOutAnimation = new AlphaAnimation(1.0f, .0f);
-        fadeOutAnimation.setFillAfter(true);
-        fadeOutAnimation.setAnimationListener(new AnimationListener() {
+        mType = type;
+        mList = list;
+        mScrollable = scrollable;
+        mGroupPosition = -1;
+        mFadeIn = new AlphaAnimation(.0f, 1.0f);
+        mFadeIn.setFillAfter(true);
+        mFadeOut = new AlphaAnimation(1.0f, .0f);
+        mFadeOut.setFillAfter(true);
+        mFadeOut.setAnimationListener(new AnimationListener() {
 
             public void onAnimationStart(Animation animation) {
             }
@@ -108,14 +113,17 @@ public class QuickScroll extends View {
             }
 
             public void onAnimationEnd(Animation animation) {
-                isScrolling = false;
+                mScrolling = false;
             }
         });
-        isScrolling = false;
+        mScrolling = false;
 
-        listView.setOnTouchListener(new OnTouchListener() {
+        final float density = getResources().getDisplayMetrics().density;
+
+        mList.setOnTouchListener(new OnTouchListener() {
+
             public boolean onTouch(View v, MotionEvent event) {
-                if (isScrolling && (event.getAction() == MotionEvent.ACTION_MOVE || event.getAction() == MotionEvent.ACTION_DOWN)) {
+                if (mScrolling && (event.getAction() == MotionEvent.ACTION_MOVE || event.getAction() == MotionEvent.ACTION_DOWN)) {
                     return true;
                 }
                 return false;
@@ -129,28 +137,33 @@ public class QuickScroll extends View {
         containerParams.addRule(RelativeLayout.ALIGN_BOTTOM, getId());
         container.setLayoutParams(containerParams);
 
-        if (this.type == TYPE_POPUP || this.type == TYPE_POPUP_WITH_HANDLE) {
-            scrollIndicatorTextView = new TextView(getContext());
-            scrollIndicatorTextView.setTextColor(Color.WHITE);
-            scrollIndicatorTextView.setVisibility(View.INVISIBLE);
-            scrollIndicatorTextView.setGravity(Gravity.CENTER);
-            final RelativeLayout.LayoutParams popupParams = new RelativeLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-            popupParams.addRule(RelativeLayout.CENTER_IN_PARENT);
-            scrollIndicatorTextView.setLayoutParams(popupParams);
+        if (mType == TYPE_POPUP || mType == TYPE_POPUP_WITH_HANDLE) {
+
+            mScrollIndicatorText = new TextView(getContext());
+            mScrollIndicatorText.setTextColor(Color.WHITE);
+            mScrollIndicatorText.setVisibility(View.INVISIBLE);
+            mScrollIndicatorText.setGravity(Gravity.CENTER);
+            final RelativeLayout.LayoutParams popupparams = new RelativeLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+
+            popupparams.addRule(RelativeLayout.CENTER_IN_PARENT);
+            mScrollIndicatorText.setLayoutParams(popupparams);
+
             setPopupColor(GREY_LIGHT, GREY_DARK, 1, Color.WHITE, 1);
-            setTextPadding(TEXT_PADDING, TEXT_PADDING, TEXT_PADDING, TEXT_PADDING);
-            container.addView(scrollIndicatorTextView);
-        } else {
-            scrollIndicator = createPin();
-            scrollIndicatorTextView = (TextView) scrollIndicator.findViewById(ID_PIN_TEXT);
-            (scrollIndicator.findViewById(ID_PIN)).getLayoutParams().width = 25;
-            container.addView(scrollIndicator);
+            setTextPadding(mTextPadding, mTextPadding, mTextPadding, mTextPadding);
+
+            container.addView(mScrollIndicatorText);
+        } else if (mType == TYPE_INDICATOR || mType == TYPE_INDICATOR_WITH_HANDLE) {
+            mScrollIndicator = createPin();
+            mScrollIndicatorText = (TextView) mScrollIndicator.findViewById(ID_PIN_TEXT);
+
+            (mScrollIndicator.findViewById(ID_PIN)).getLayoutParams().width = 25;
+
+            container.addView(mScrollIndicator);
         }
 
         // setting scrollbar width
-        final float density = getResources().getDisplayMetrics().density;
         getLayoutParams().width = (int) (30 * density);
-        scrollIndicatorTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 32);
+        mScrollIndicatorText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 32);
 
         // scrollbar setup
         if (style != STYLE_NONE) {
@@ -162,31 +175,37 @@ public class QuickScroll extends View {
             params.addRule(RelativeLayout.ALIGN_BOTTOM, getId());
             layout.setLayoutParams(params);
 
-            final View scrollbar = new View(getContext());
-            scrollbar.setBackgroundColor(GREY_SCROLLBAR);
-            final RelativeLayout.LayoutParams scrollBarParams = new RelativeLayout.LayoutParams(1, LayoutParams.MATCH_PARENT);
-            scrollBarParams.addRule(RelativeLayout.CENTER_HORIZONTAL);
-            scrollBarParams.topMargin = SCROLLBAR_MARGIN;
-            scrollBarParams.bottomMargin = SCROLLBAR_MARGIN;
-            scrollbar.setLayoutParams(scrollBarParams);
-            layout.addView(scrollbar);
-            ViewGroup.class.cast(listView.getParent()).addView(layout);
+            mScrollbar = new View(getContext());
+            mScrollbar.setBackgroundColor(GREY_SCROLLBAR);
+            final RelativeLayout.LayoutParams scrollbarparams = new RelativeLayout.LayoutParams(1, LayoutParams.MATCH_PARENT);
+            scrollbarparams.addRule(RelativeLayout.CENTER_HORIZONTAL);
+            scrollbarparams.topMargin = SCROLLBAR_MARGIN;
+            scrollbarparams.bottomMargin = SCROLLBAR_MARGIN;
+            mScrollbar.setLayoutParams(scrollbarparams);
+            layout.addView(mScrollbar);
+            ((ViewGroup) mList.getParent()).addView(layout);
             // creating the handlebar
-            if (this.type == TYPE_INDICATOR_WITH_HANDLE || this.type == TYPE_POPUP_WITH_HANDLE) {
-                handleBar = new View(getContext());
+            if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE) {
+                mHandlebar = new View(getContext());
                 setHandlebarColor(BLUE_LIGHT, BLUE_LIGHT, BLUE_LIGHT_SEMITRANSPARENT);
-                final RelativeLayout.LayoutParams handleParams = new RelativeLayout.LayoutParams((int) (HANDLEBAR_WIDTH * density), (int) (HANDLEBAR_HEIGHT * density));
-                handleBar.setLayoutParams(handleParams);
-                ((RelativeLayout.LayoutParams) handleBar.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
-                layout.addView(handleBar);
+                final RelativeLayout.LayoutParams handleparams = new RelativeLayout.LayoutParams((int) (12 * density), (int) (36 * density));
+                mHandlebar.setLayoutParams(handleparams);
+                ((RelativeLayout.LayoutParams) mHandlebar.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
+                layout.addView(mHandlebar);
 
-                listView.setOnScrollListener(new OnScrollListener() {
+                mList.setOnScrollListener(new OnScrollListener() {
 
                     public void onScrollStateChanged(AbsListView view, int scrollState) {
+                        if (scrollState == SCROLL_STATE_TOUCH_SCROLL) {
+                            // Hide the keyboard
+                            InputMethodManager imm = (InputMethodManager) view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+                        }
                     }
 
+                    @SuppressLint("NewApi")
                     public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
-                        if (!isScrolling && totalItemCount - visibleItemCount > 0) {
+                        if (!mScrolling && totalItemCount - visibleItemCount > 0) {
                             moveHandlebar(getHeight() * firstVisibleItem / (totalItemCount - visibleItemCount));
                         }
                     }
@@ -195,100 +214,155 @@ public class QuickScroll extends View {
         }
 
         markers = new HashMap<Integer, View>();
+        mInitialized = true;
 
-        isInitialized = true;
-
-        ViewGroup.class.cast(listView.getParent()).addView(container);
+        ((ViewGroup) mList.getParent()).addView(container);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        Adapter adapter = listView.getAdapter();
-
-        if (adapter == null)
+        if (mList.getAdapter() == null)
+            return false;
+        mItemCount = mList.getAdapter().getCount();
+        if (mItemCount == 0)
             return false;
 
-        if (adapter instanceof HeaderViewListAdapter) {
-            adapter = ((HeaderViewListAdapter) adapter).getWrappedAdapter();
-        }
-
-        itemCount = adapter.getCount();
-        if (itemCount == 0)
-            return false;
-        if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-            if (type == TYPE_POPUP || type == TYPE_INDICATOR) {
-                scrollIndicatorTextView.startAnimation(fadeOutAnimation);
-            } else {
-                if (type == TYPE_INDICATOR_WITH_HANDLE || type == TYPE_POPUP_WITH_HANDLE)
-                    handleBar.setSelected(false);
-                scrollIndicator.startAnimation(fadeOutAnimation);
-            }
-        }
-        switch (event.getActionMasked()) {
-            case MotionEvent.ACTION_DOWN:
-                if (type == TYPE_INDICATOR || type == TYPE_INDICATOR_WITH_HANDLE) {
-                    scrollIndicator.startAnimation(fadeInAnimation);
-                    scrollIndicator.setPadding(0, 0, getWidth(), 0);
+        if (mScrolling && event.getAction() == MotionEvent.ACTION_CANCEL) {
+            if (mType == TYPE_POPUP || mType == TYPE_POPUP_WITH_HANDLE) {
+                if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    mScrolling = false;
+                    mScrollIndicatorText.setVisibility(View.GONE);
                 } else
-                    scrollIndicatorTextView.startAnimation(fadeInAnimation);
+                    mScrollIndicatorText.startAnimation(mFadeOut);
+            } else {
+                if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    mScrolling = false;
+                    mScrollIndicator.findViewById(ID_PIN).setVisibility(View.INVISIBLE);
+                    mScrollIndicatorText.setVisibility(View.INVISIBLE);
+                } else
+                    mScrollIndicator.startAnimation(mFadeOut);
+            }
+            if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE)
+                mHandlebar.setSelected(false);
+        }
+
+        switch (mType) {
+            case TYPE_POPUP:
+                return PopupTouchEvent(event);
+            case TYPE_POPUP_WITH_HANDLE:
+                return PopupTouchEvent(event);
+            case TYPE_INDICATOR:
+                return IndicatorTouchEvent(event);
+            case TYPE_INDICATOR_WITH_HANDLE:
+                return IndicatorTouchEvent(event);
+            default:
+                break;
+        }
+        return false;
+    }
+
+    @SuppressLint("NewApi")
+    private boolean IndicatorTouchEvent(final MotionEvent event) {
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    mScrollIndicator.findViewById(ID_PIN).setVisibility(View.VISIBLE);
+                    mScrollIndicatorText.setVisibility(View.VISIBLE);
+                } else
+                    mScrollIndicator.startAnimation(mFadeIn);
+                mScrollIndicator.setPadding(0, 0, getWidth(), 0);
                 scroll(event.getY());
-                isScrolling = true;
+                mScrolling = true;
                 return true;
             case MotionEvent.ACTION_MOVE:
                 scroll(event.getY());
                 return true;
             case MotionEvent.ACTION_UP:
-                if (type == TYPE_INDICATOR_WITH_HANDLE || type == TYPE_POPUP_WITH_HANDLE)
-                    handleBar.setSelected(false);
-                if (type == TYPE_INDICATOR || type == TYPE_INDICATOR_WITH_HANDLE)
-                    scrollIndicator.startAnimation(fadeOutAnimation);
-                else
-                    scrollIndicatorTextView.startAnimation(fadeOutAnimation);
+                if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    mScrolling = false;
+                    mScrollIndicator.findViewById(ID_PIN).setVisibility(View.INVISIBLE);
+                    mScrollIndicatorText.setVisibility(View.INVISIBLE);
+                } else
+                    mScrollIndicator.startAnimation(mFadeOut);
+
+                if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE)
+                    mHandlebar.setSelected(false);
                 return true;
             default:
-                return false;
+                break;
         }
+        return false;
+    }
+
+    private boolean PopupTouchEvent(final MotionEvent event) {
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB)
+                    mScrollIndicatorText.setVisibility(View.VISIBLE);
+                else
+                    mScrollIndicatorText.startAnimation(mFadeIn);
+                mScrolling = true;
+                scroll(event.getY());
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                scroll(event.getY());
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    mScrollIndicatorText.setVisibility(View.GONE);
+                    mScrolling = false;
+                } else
+                    mScrollIndicatorText.startAnimation(mFadeOut);
+
+                if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE)
+                    mHandlebar.setSelected(false);
+                return true;
+            default:
+                break;
+        }
+        return false;
     }
 
     public void notifyDataSetChanged() {
-        itemCount = listView.getAdapter().getCount();
+        itemCount = mList.getAdapter().getCount();
         if (itemCount == 0) return;
         scroll(lastHeight);
     }
 
     @SuppressLint("NewApi")
     protected void scroll(final float height) {
-        lastHeight = height;
-        if (type == TYPE_INDICATOR || type == TYPE_INDICATOR_WITH_HANDLE) {
-            float move = height - (scrollIndicator.getHeight() / 2);
+        if (mType == TYPE_INDICATOR || mType == TYPE_INDICATOR_WITH_HANDLE) {
+            float move = height - (mScrollIndicator.getHeight() / 2);
 
             if (move < 0)
                 move = 0;
-            else if (move > getHeight() - scrollIndicator.getHeight())
-                move = getHeight() - scrollIndicator.getHeight();
+            else if (move > getHeight() - mScrollIndicator.getHeight())
+                move = getHeight() - mScrollIndicator.getHeight();
 
-            // scrollIndicator.setTranslationY(move);
-            ViewHelper.setTranslationY(scrollIndicator, move);
+            if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB)
+                mScrollIndicator.startAnimation(moveCompat(move));
+            else
+                mScrollIndicator.setTranslationY(move);
         }
 
-        if (type == TYPE_INDICATOR_WITH_HANDLE || type == TYPE_POPUP_WITH_HANDLE) {
-            handleBar.setSelected(true);
-            moveHandlebar(height - (handleBar.getHeight() / 2));
+        if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE) {
+            mHandlebar.setSelected(true);
+            moveHandlebar(height - (mHandlebar.getHeight() / 2));
         }
 
-        int position = (int) ((height / getHeight()) * itemCount);
-        if (listView instanceof ExpandableListView) {
-            final int groupPosition = ExpandableListView.getPackedPositionGroup(((ExpandableListView) listView).getExpandableListPosition(position));
-            if (groupPosition != -1)
-                this.groupPosition = groupPosition;
+        int postition = (int) ((height / getHeight()) * mItemCount);
+        if (mList instanceof ExpandableListView) {
+            final int grouppos = ExpandableListView.getPackedPositionGroup(((ExpandableListView) mList).getExpandableListPosition(postition));
+            if (grouppos != -1)
+                mGroupPosition = grouppos;
         }
 
-        if (position < 0)
-            position = 0;
-        else if (position >= itemCount)
-            position = itemCount - 1;
-        scrollIndicatorTextView.setText(scrollable.getIndicatorForPosition(position, groupPosition));
-        listView.setSelection(scrollable.getScrollPosition(position, groupPosition));
+        if (postition < 0)
+            postition = 0;
+        else if (postition >= mItemCount)
+            postition = mItemCount - 1;
+        mScrollIndicatorText.setText(mScrollable.getIndicatorForPosition(postition, mGroupPosition));
+        mList.setSelection(mScrollable.getScrollPosition(postition, mGroupPosition));
     }
 
     @SuppressLint("NewApi")
@@ -296,11 +370,13 @@ public class QuickScroll extends View {
         float move = where;
         if (move < SCROLLBAR_MARGIN)
             move = SCROLLBAR_MARGIN;
-        else if (move > getHeight() - handleBar.getHeight() - SCROLLBAR_MARGIN)
-            move = getHeight() - handleBar.getHeight() - SCROLLBAR_MARGIN;
+        else if (move > getHeight() - mHandlebar.getHeight() - SCROLLBAR_MARGIN)
+            move = getHeight() - mHandlebar.getHeight() - SCROLLBAR_MARGIN;
 
-        // handleBar.setTranslationY(move);
-        ViewHelper.setTranslationY(handleBar, move);
+        if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB)
+            mHandlebar.startAnimation(moveCompat(move));
+        else
+            mHandlebar.setTranslationY(move);
     }
 
     /**
@@ -310,8 +386,9 @@ public class QuickScroll extends View {
      * @param millis the fade duration in milliseconds
      */
     public void setFadeDuration(long millis) {
-        fadeInAnimation.setDuration(millis);
-        fadeOutAnimation.setDuration(millis);
+        mFadeDuration = millis;
+        mFadeIn.setDuration(mFadeDuration);
+        mFadeOut.setDuration(mFadeDuration);
     }
 
     /**
@@ -323,10 +400,10 @@ public class QuickScroll extends View {
      * @param text       the color of the text
      */
     public void setIndicatorColor(final int background, final int tip, final int text) {
-        if (type == TYPE_INDICATOR || type == TYPE_INDICATOR_WITH_HANDLE) {
-            ((Pin) scrollIndicator.findViewById(ID_PIN)).setColor(tip);
-            scrollIndicatorTextView.setTextColor(text);
-            scrollIndicatorTextView.setBackgroundColor(background);
+        if (mType == TYPE_INDICATOR || mType == TYPE_INDICATOR_WITH_HANDLE) {
+            ((Pin) mScrollIndicator.findViewById(ID_PIN)).setColor(tip);
+            mScrollIndicatorText.setTextColor(text);
+            mScrollIndicatorText.setBackgroundColor(background);
         }
     }
 
@@ -338,6 +415,8 @@ public class QuickScroll extends View {
      * @param bordercolor     the background color of the border surrounding the TextView
      * @param textcolor       the color of the text
      */
+    @SuppressWarnings("deprecation")
+    @SuppressLint("NewApi")
     public void setPopupColor(final int backgroundcolor, final int bordercolor, final int borderwidthDPI, final int textcolor, float cornerradiusDPI) {
 
         final GradientDrawable popupbackground = new GradientDrawable();
@@ -346,11 +425,11 @@ public class QuickScroll extends View {
         popupbackground.setColor(backgroundcolor);
 
         if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN)
-            scrollIndicatorTextView.setBackgroundDrawable(popupbackground);
+            mScrollIndicatorText.setBackgroundDrawable(popupbackground);
         else
-            scrollIndicatorTextView.setBackground(popupbackground);
+            mScrollIndicatorText.setBackground(popupbackground);
 
-        scrollIndicatorTextView.setTextColor(textcolor);
+        mScrollIndicatorText.setTextColor(textcolor);
     }
 
     /**
@@ -362,8 +441,8 @@ public class QuickScroll extends View {
      */
     public void setSize(final int widthDP, final int heightDP) {
         final float density = getResources().getDisplayMetrics().density;
-        scrollIndicatorTextView.getLayoutParams().width = (int) (widthDP * density);
-        scrollIndicatorTextView.getLayoutParams().height = (int) (heightDP * density);
+        mScrollIndicatorText.getLayoutParams().width = (int) (widthDP * density);
+        mScrollIndicatorText.getLayoutParams().height = (int) (heightDP * density);
     }
 
     /**
@@ -377,7 +456,7 @@ public class QuickScroll extends View {
      */
     public void setTextPadding(final int paddingLeftDP, final int paddingTopDP, final int paddingBottomDP, final int paddingRightDP) {
         final float density = getResources().getDisplayMetrics().density;
-        scrollIndicatorTextView.setPadding((int) (paddingLeftDP * density), (int) (paddingTopDP * density), (int) (paddingRightDP * density), (int) (paddingBottomDP * density));
+        mScrollIndicatorText.setPadding((int) (paddingLeftDP * density), (int) (paddingTopDP * density), (int) (paddingRightDP * density), (int) (paddingBottomDP * density));
 
     }
 
@@ -388,7 +467,7 @@ public class QuickScroll extends View {
      * @param sizeEMS number of characters in the indicatortext
      */
     public void setFixedSize(final int sizeEMS) {
-        scrollIndicatorTextView.setEms(sizeEMS);
+        mScrollIndicatorText.setEms(sizeEMS);
     }
 
     /**
@@ -398,7 +477,7 @@ public class QuickScroll extends View {
      * @param size - the size according to the selected unit
      */
     public void setTextSize(final int unit, final float size) {
-        scrollIndicatorTextView.setTextSize(unit, size);
+        mScrollIndicatorText.setTextSize(unit, size);
     }
 
     /**
@@ -407,7 +486,7 @@ public class QuickScroll extends View {
      * @param typeface the typeface
      */
     public void setTypeface(final Typeface typeface) {
-        scrollIndicatorTextView.setTypeface(typeface);
+        mScrollIndicatorText.setTypeface(typeface);
     }
 
     /**
@@ -417,7 +496,7 @@ public class QuickScroll extends View {
      * @param style    the style
      */
     public void setTypeface(final Typeface typeface, int style) {
-        scrollIndicatorTextView.setTypeface(typeface, style);
+        mScrollIndicatorText.setTypeface(typeface, style);
     }
 
     /**
@@ -427,8 +506,10 @@ public class QuickScroll extends View {
      * @param activebase   - base color of the active handlebar
      * @param activestroke - stroke of the active handlebar
      */
+    @SuppressWarnings("deprecation")
+    @SuppressLint("NewApi")
     public void setHandlebarColor(final int inactive, final int activebase, final int activestroke) {
-        if (type == TYPE_INDICATOR_WITH_HANDLE || type == TYPE_POPUP_WITH_HANDLE) {
+        if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE) {
             final float density = getResources().getDisplayMetrics().density;
             final GradientDrawable bg_inactive = new GradientDrawable();
             bg_inactive.setCornerRadius(density);
@@ -443,13 +524,32 @@ public class QuickScroll extends View {
             states.addState(new int[]{android.R.attr.state_enabled}, bg_inactive);
 
             if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN)
-                handleBar.setBackgroundDrawable(states);
+                mHandlebar.setBackgroundDrawable(states);
             else
-                handleBar.setBackground(states);
+                mHandlebar.setBackground(states);
         }
     }
 
-    protected RelativeLayout createPin() {
+    /**
+     * Set the size of the handlebar.
+     *
+     * @param width - the width in pixels
+     * @param height - the height in pixels
+     */
+    public void setHandlebarSize(final float width, final float height) {
+        final RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) mHandlebar.getLayoutParams();
+        params.width = (int) width;
+        params.height = (int) height;
+    }
+
+    private TranslateAnimation moveCompat(final float toYDelta) {
+        mMoveCompatAnim = new TranslateAnimation(0, 0, toYDelta, toYDelta);
+        mMoveCompatAnim.setFillAfter(true);
+        mMoveCompatAnim.setDuration(0);
+        return mMoveCompatAnim;
+    }
+
+    protected RelativeLayout createPin(){
         final RelativeLayout pinLayout = new RelativeLayout(getContext());
         pinLayout.setVisibility(View.INVISIBLE);
 
@@ -485,13 +585,13 @@ public class QuickScroll extends View {
         marker.setLayoutParams(params);
         ((RelativeLayout.LayoutParams) marker.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
 
-        itemCount = listView.getAdapter().getCount();
-        int move = (position * layout.getHeight() / itemCount);
+        mItemCount = mList.getAdapter().getCount();
+        int move = (position * layout.getHeight() / mItemCount);
         if (move < SCROLLBAR_MARGIN)
             move = SCROLLBAR_MARGIN;
-        else if (move > getHeight() - handleBar.getHeight() - SCROLLBAR_MARGIN)
-            move = getHeight() - handleBar.getHeight() - SCROLLBAR_MARGIN;
-        move += position * (handleBar.getHeight()-SCROLLBAR_MARGIN) / itemCount;
+        else if (move > getHeight() - mHandlebar.getHeight() - SCROLLBAR_MARGIN)
+            move = getHeight() - mHandlebar.getHeight() - SCROLLBAR_MARGIN;
+        move += position * (mHandlebar.getHeight()-SCROLLBAR_MARGIN) / itemCount;
 
         marker.setTranslationY(move);
 
