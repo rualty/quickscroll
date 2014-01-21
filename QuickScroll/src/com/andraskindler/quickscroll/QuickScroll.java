@@ -19,6 +19,8 @@ import android.view.animation.Animation.AnimationListener;
 import android.widget.*;
 import android.widget.AbsListView.OnScrollListener;
 
+import java.util.HashMap;
+
 public class QuickScroll extends View {
 
     // IDs
@@ -39,6 +41,10 @@ public class QuickScroll extends View {
     public static final int BLUE_LIGHT = Color.parseColor("#FF33B5E5");
     public static final int BLUE_LIGHT_SEMITRANSPARENT = Color.parseColor("#8033B5E5");
     protected static final int SCROLLBAR_MARGIN = 10;
+    // base sizes
+    public static final int HANDLEBAR_HEIGHT = 24;
+    public static final int HANDLEBAR_WIDTH = 12;
+    public static final int MARKER_HEIGHT = 3;
     // base variables
     protected boolean isScrolling;
     protected AlphaAnimation fadeInAnimation, fadeOutAnimation;
@@ -54,6 +60,10 @@ public class QuickScroll extends View {
     protected View handleBar;
     // indicator variables
     protected RelativeLayout scrollIndicator;
+
+    private RelativeLayout container;
+    private RelativeLayout layout;
+    private HashMap<Integer, View> markers;
 
     // default constructors
     public QuickScroll(Context context) {
@@ -111,7 +121,7 @@ public class QuickScroll extends View {
         });
 
         final RelativeLayout.LayoutParams containerParams = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-        final RelativeLayout container = new RelativeLayout(getContext());
+        container = new RelativeLayout(getContext());
         container.setBackgroundColor(Color.TRANSPARENT);
         containerParams.addRule(RelativeLayout.ALIGN_TOP, getId());
         containerParams.addRule(RelativeLayout.ALIGN_BOTTOM, getId());
@@ -142,7 +152,7 @@ public class QuickScroll extends View {
 
         // scrollbar setup
         if (style != STYLE_NONE) {
-            final RelativeLayout layout = new RelativeLayout(getContext());
+            layout = new RelativeLayout(getContext());
             final RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
             params.addRule(RelativeLayout.ALIGN_LEFT, getId());
             params.addRule(RelativeLayout.ALIGN_TOP, getId());
@@ -163,7 +173,7 @@ public class QuickScroll extends View {
             if (this.type == TYPE_INDICATOR_WITH_HANDLE || this.type == TYPE_POPUP_WITH_HANDLE) {
                 handleBar = new View(getContext());
                 setHandlebarColor(BLUE_LIGHT, BLUE_LIGHT, BLUE_LIGHT_SEMITRANSPARENT);
-                final RelativeLayout.LayoutParams handleParams = new RelativeLayout.LayoutParams((int) (12 * density), (int) (36 * density));
+                final RelativeLayout.LayoutParams handleParams = new RelativeLayout.LayoutParams((int) (HANDLEBAR_WIDTH * density), (int) (HANDLEBAR_HEIGHT * density));
                 handleBar.setLayoutParams(handleParams);
                 ((RelativeLayout.LayoutParams) handleBar.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
                 layout.addView(handleBar);
@@ -181,6 +191,8 @@ public class QuickScroll extends View {
                 });
             }
         }
+
+        markers = new HashMap<Integer, View>();
 
         isInitialized = true;
 
@@ -432,6 +444,37 @@ public class QuickScroll extends View {
         pinLayout.addView(indicatorTextView);
 
         return pinLayout;
+    }
+
+    @SuppressLint("NewApi")
+    public void addMarker(int position) {
+        final float density = getResources().getDisplayMetrics().density;
+
+        View marker = new View(getContext());
+        marker.setBackgroundColor(getResources().getColor(android.R.color.holo_green_dark));
+        final RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams((int) (12 * density), (int) (MARKER_HEIGHT * density));
+        marker.setLayoutParams(params);
+        ((RelativeLayout.LayoutParams) marker.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
+
+        itemCount = listView.getAdapter().getCount();
+        int move = (position * layout.getHeight() / itemCount);
+        if (move < SCROLLBAR_MARGIN)
+            move = SCROLLBAR_MARGIN;
+        else if (move > getHeight() - handleBar.getHeight() - SCROLLBAR_MARGIN)
+            move = getHeight() - handleBar.getHeight() - SCROLLBAR_MARGIN;
+        move += position * (handleBar.getHeight()-SCROLLBAR_MARGIN) / itemCount;
+
+        marker.setTranslationY(move);
+
+        layout.addView(marker);
+
+        markers.put(position, marker);
+    }
+
+    public void removeMarker(int position) {
+        View v = markers.get(position);
+        layout.removeView(v);
+        markers.remove(position);
     }
 
 }
