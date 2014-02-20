@@ -3,6 +3,7 @@ package com.andraskindler.quickscroll;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
@@ -209,7 +210,8 @@ public class QuickScroll extends View {
                     scrollIndicator.startAnimation(fadeInAnimation);
                     scrollIndicator.setPadding(0, 0, getWidth(), 0);
                 } else
-                    scrollIndicatorTextView.startAnimation(fadeInAnimation); scroll(event.getY());
+                    scrollIndicatorTextView.startAnimation(fadeInAnimation);
+                scroll(event.getY());
                 isScrolling = true;
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -370,6 +372,25 @@ public class QuickScroll extends View {
      */
     public void setTextSize(final int unit, final float size) {
         scrollIndicatorTextView.setTextSize(unit, size);
+    }
+
+    /**
+     * Sets the typeface of the TextView containing the indicatortext.
+     *
+     * @param typeface the typeface
+     */
+    public void setTypeface(final Typeface typeface) {
+        scrollIndicatorTextView.setTypeface(typeface);
+    }
+
+    /**
+     * Sets the typeface of the TextView containing the indicatortext.
+     *
+     * @param typeface the typeface
+     * @param style    the style
+     */
+    public void setTypeface(final Typeface typeface, int style) {
+        scrollIndicatorTextView.setTypeface(typeface, style);
     }
 
     /**
