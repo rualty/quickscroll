@@ -55,6 +55,7 @@ public class QuickScroll extends View {
     protected View handleBar;
     // indicator variables
     protected RelativeLayout scrollIndicator;
+    protected float lastHeight;
 
     // default constructors
     public QuickScroll(Context context) {
@@ -230,8 +231,15 @@ public class QuickScroll extends View {
         }
     }
 
+    public void notifyDataSetChanged() {
+        itemCount = listView.getAdapter().getCount();
+        if (itemCount == 0) return;
+        scroll(lastHeight);
+    }
+
     @SuppressLint("NewApi")
     protected void scroll(final float height) {
+        lastHeight = height;
         if (type == TYPE_INDICATOR || type == TYPE_INDICATOR_WITH_HANDLE) {
             float move = height - (scrollIndicator.getHeight() / 2);
 
