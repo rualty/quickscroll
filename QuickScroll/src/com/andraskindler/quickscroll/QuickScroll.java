@@ -471,6 +471,14 @@ public class QuickScroll extends View {
         markers.put(position, marker);
     }
 
+    public void clearMarkers() {
+        for (Integer position : markers.keySet()) {
+            View v = markers.get(position);
+            layout.removeView(v);
+            markers.remove(position);
+        }
+    }
+
     public void removeMarker(int position) {
         View v = markers.get(position);
         layout.removeView(v);
