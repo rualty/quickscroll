@@ -52,7 +52,11 @@ Usage
 Including in your app
 =====================
 
-QuickScroll is available as an Android Library Project. In Eclipse, you can include it by referencing as a library project, in IntelliJ, you can add it as a module.
+QuickScroll is available as an Android Library Project.
+
+In Gradle project follow 2 steps instructions in https://jitpack.io/#sebaslogen/quickscroll/v1.0.2
+
+In Eclipse, you can include it by referencing as a library project, in IntelliJ, you can add it as a module.
 
 <p align="center"><img src="http://howrobotswork.files.wordpress.com/2013/08/quickscroll_21.png"/></p>
 
