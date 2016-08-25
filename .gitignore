@@ -33,7 +33,7 @@ proguard-project.txt
 .DS_Store
 tmp
 project.properties
-*.properties
+
 
 # Gradle files
 .gradle/
