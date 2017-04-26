@@ -26,6 +26,8 @@ import android.widget.AbsListView.OnScrollListener;
 
 import java.util.HashMap;
 
+import se.emilsjolander.stickylistheaders.StickyListHeadersListView;
+
 public class QuickScroll extends View {
 
     // IDs
@@ -68,6 +70,7 @@ public class QuickScroll extends View {
     private View mHandlebar;
     // indicator variables
     private RelativeLayout mScrollIndicator;
+    private StickyListHeadersListView mStickyHeaders=null;
     protected float lastHeight;
 
     private RelativeLayout container;
@@ -121,15 +124,19 @@ public class QuickScroll extends View {
             }
         });
         mScrolling = false;
-
-        mList.setOnTouchListener(new OnTouchListener() {
-            public boolean onTouch(View v, MotionEvent event) {
-                if (mScrolling && (event.getAction() == MotionEvent.ACTION_MOVE || event.getAction() == MotionEvent.ACTION_DOWN)) {
-                    return true;
+        if (mStickyHeaders!=null) {
+            mStickyHeaders.setOnTouchListener(new OnTouchListener() {
+                public boolean onTouch(View v, MotionEvent event) {
+                    return mScrolling && (event.getAction() == MotionEvent.ACTION_MOVE || event.getAction() == MotionEvent.ACTION_DOWN);
                 }
-                return false;
-            }
-        });
+            });
+        }else {
+            mList.setOnTouchListener(new OnTouchListener() {
+                public boolean onTouch(View v, MotionEvent event) {
+                    return mScrolling && (event.getAction() == MotionEvent.ACTION_MOVE || event.getAction() == MotionEvent.ACTION_DOWN);
+                }
+            });
+        }
 
         final RelativeLayout.LayoutParams containerParams = new RelativeLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
         container = new RelativeLayout(getContext());
@@ -179,7 +186,12 @@ public class QuickScroll extends View {
             scrollbarparams.bottomMargin = SCROLLBAR_MARGIN;
             mScrollbar.setLayoutParams(scrollbarparams);
             layout.addView(mScrollbar);
-            ((ViewGroup) mList.getParent()).addView(layout);
+            if (mStickyHeaders!=null) {
+                ((ViewGroup) mStickyHeaders.getParent()).addView(layout);
+            }else {
+                ((ViewGroup) mList.getParent()).addView(layout);
+
+            }
             // creating the handlebar
             if (mType == TYPE_INDICATOR_WITH_HANDLE || mType == TYPE_POPUP_WITH_HANDLE) {
                 mHandlebar = new View(getContext());
@@ -188,42 +200,67 @@ public class QuickScroll extends View {
                 mHandlebar.setLayoutParams(handleparams);
                 ((RelativeLayout.LayoutParams) mHandlebar.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
                 layout.addView(mHandlebar);
+            }
+        }
+        if (mStickyHeaders!=null) {
+            mStickyHeaders.setOnScrollListener(new OnScrollListener() {
 
-                mList.setOnScrollListener(new OnScrollListener() {
-
-                    public void onScrollStateChanged(AbsListView view, int scrollState) {
-                        if (scrollState == SCROLL_STATE_TOUCH_SCROLL) {
-                            // Hide the keyboard
-                            InputMethodManager imm = (InputMethodManager) view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-                            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
-                        }
+                public void onScrollStateChanged(AbsListView view, int scrollState) {
+                    if (scrollState == SCROLL_STATE_TOUCH_SCROLL) {
+                        // Hide the keyboard
+                        InputMethodManager imm = (InputMethodManager) view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
                     }
+                }
 
-                    @SuppressLint("NewApi")
-                    public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+                @SuppressLint("NewApi")
+                public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+                    try {
                         if (!mScrolling && totalItemCount - visibleItemCount > 0) {
                             moveHandlebar(getHeight() * firstVisibleItem / (totalItemCount - visibleItemCount));
                         }
-                    }
-                });
-            }
-        }
+                    } catch (Exception ignored) {
 
+                    }
+                }
+            });
+        }else {
+            mList.setOnScrollListener(new OnScrollListener() {
+
+                public void onScrollStateChanged(AbsListView view, int scrollState) {
+                    if (scrollState == SCROLL_STATE_TOUCH_SCROLL) {
+                        // Hide the keyboard
+                        InputMethodManager imm = (InputMethodManager) view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+                    }
+                }
+
+                @SuppressLint("NewApi")
+                public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+                    try {
+                        if (!mScrolling && totalItemCount - visibleItemCount > 0) {
+                            moveHandlebar(getHeight() * firstVisibleItem / (totalItemCount - visibleItemCount));
+                        }
+                    } catch (Exception ignored) {
+
+                    }
+                }
+            });
+        }
         markers = new HashMap<Integer, View>();
 
         mInitialized = true;
 
-        ViewParent parent=mList.getParent();
-        if (parent instanceof RelativeLayout) {
-            ((ViewGroup) parent).addView(container);
+        if (mStickyHeaders!=null) {
+            ((ViewGroup) mStickyHeaders.getParent()).addView(container);
         }else {
-            ((ViewGroup) parent.getParent()).addView(container);
+            ((ViewGroup) mList.getParent()).addView(container);
         }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        Adapter adapter = mList.getAdapter();
+        Adapter adapter = mStickyHeaders!=null ? mStickyHeaders.getAdapter() : mList.getAdapter();
         if (adapter == null)
             return false;
 
@@ -231,7 +268,7 @@ public class QuickScroll extends View {
             adapter = ((HeaderViewListAdapter) adapter).getWrappedAdapter();
         }
 
-        mItemCount = adapter.getCount();
+        mItemCount = mStickyHeaders!=null ? mStickyHeaders.getAdapter().getCount() : mList.getAdapter().getCount();
         if (mItemCount == 0)
             return false;
         if (mScrolling && event.getAction() == MotionEvent.ACTION_CANCEL) {
@@ -331,7 +368,7 @@ public class QuickScroll extends View {
     }
 
     public void notifyDataSetChanged() {
-        mItemCount = mList.getAdapter().getCount();
+        mItemCount = mStickyHeaders!=null ? mStickyHeaders.getAdapter().getCount() : mList.getAdapter().getCount();
         if (mItemCount == 0) return;
         scroll(lastHeight);
     }
@@ -385,7 +422,11 @@ public class QuickScroll extends View {
         }else {
             toPosition=mScrollable.getScrollPosition(postition, mGroupPosition);
         }
-        mList.setSelection(toPosition);
+        if (mStickyHeaders!=null) {
+            mStickyHeaders.smoothScrollToPosition(toPosition);
+        }else {
+            mList.setSelection(toPosition);
+        }
     }
 
     @SuppressLint("NewApi")
@@ -608,7 +649,7 @@ public class QuickScroll extends View {
         marker.setLayoutParams(params);
         ((RelativeLayout.LayoutParams) marker.getLayoutParams()).addRule(RelativeLayout.CENTER_HORIZONTAL);
 
-        mItemCount = mList.getAdapter().getCount();
+        mItemCount = mStickyHeaders!=null ? mStickyHeaders.getAdapter().getCount() : mList.getAdapter().getCount();
         int move = (position * layout.getHeight() / mItemCount);
         if (move < SCROLLBAR_MARGIN)
             move = SCROLLBAR_MARGIN;
@@ -639,5 +680,9 @@ public class QuickScroll extends View {
 
     public void setSectionIndexer(SectionIndexer sectionIndexer) {
         mSectionIndexer=sectionIndexer;
+    }
+
+    public void setStickyHeaders(StickyListHeadersListView stickyListHeadersListView) {
+        mStickyHeaders=stickyListHeadersListView;
     }
 }
