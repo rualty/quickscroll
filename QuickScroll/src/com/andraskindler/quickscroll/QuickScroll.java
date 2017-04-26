@@ -8,12 +8,14 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
+import android.view.ViewParent;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.Animation.AnimationListener;
@@ -55,6 +57,7 @@ public class QuickScroll extends View {
     private Scrollable mScrollable;
     private ListView mList;
     private View mScrollbar;
+    private SectionIndexer mSectionIndexer=null;
     private int mGroupPosition;
     private int mItemCount;
     private long mFadeDuration = 150;
@@ -210,7 +213,12 @@ public class QuickScroll extends View {
 
         mInitialized = true;
 
-        ((ViewGroup) mList.getParent()).addView(container);
+        ViewParent parent=mList.getParent();
+        if (parent instanceof RelativeLayout) {
+            ((ViewGroup) parent).addView(container);
+        }else {
+            ((ViewGroup) parent.getParent()).addView(container);
+        }
     }
 
     @Override
@@ -349,20 +357,35 @@ public class QuickScroll extends View {
             mHandlebar.setSelected(true);
             moveHandlebar(height - (mHandlebar.getHeight() / 2));
         }
+        int sectionIndexerCount=-1;
+        if (mSectionIndexer!=null) {
+            sectionIndexerCount=mSectionIndexer.getSections().length;
+        }
 
-        int postition = (int) ((height / getHeight()) * mItemCount);
+        int postition = (int) ((height / getHeight()) * (sectionIndexerCount>-1 ? sectionIndexerCount : mItemCount));
         if (mList instanceof ExpandableListView) {
             final int grouppos = ExpandableListView.getPackedPositionGroup(((ExpandableListView) mList).getExpandableListPosition(postition));
             if (grouppos != -1)
                 mGroupPosition = grouppos;
         }
 
+        if (sectionIndexerCount>-1) {
+            if (postition >= sectionIndexerCount) {
+                postition=sectionIndexerCount-1;
+            }
+        }else if (postition >= mItemCount)
+            postition = mItemCount - 1;
         if (postition < 0)
             postition = 0;
-        else if (postition >= mItemCount)
-            postition = mItemCount - 1;
+
         mScrollIndicatorText.setText(mScrollable.getIndicatorForPosition(postition, mGroupPosition));
-        mList.setSelection(mScrollable.getScrollPosition(postition, mGroupPosition));
+        int toPosition;
+        if (mSectionIndexer!=null) {
+            toPosition=mSectionIndexer.getPositionForSection(postition);
+        }else {
+            toPosition=mScrollable.getScrollPosition(postition, mGroupPosition);
+        }
+        mList.setSelection(toPosition);
     }
 
     @SuppressLint("NewApi")
@@ -614,4 +637,7 @@ public class QuickScroll extends View {
         markers.remove(position);
     }
 
+    public void setSectionIndexer(SectionIndexer sectionIndexer) {
+        mSectionIndexer=sectionIndexer;
+    }
 }

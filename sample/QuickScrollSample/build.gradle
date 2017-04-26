@@ -1,8 +1,8 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 19
-    buildToolsVersion "19.1.0"
+    compileSdkVersion 21
+    buildToolsVersion "25.0.0"
 
     sourceSets {
         main {
@@ -16,6 +16,9 @@ android {
                 srcFile 'AndroidManifest.xml'
             }
         }
+    }
+    lintOptions {
+        abortOnError false
     }
 }
 
